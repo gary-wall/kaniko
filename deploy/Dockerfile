@@ -25,6 +25,24 @@ ENV GOOS=$TARGETOS
 
 ENV CGO_ENABLED=0
 
+# Install UPX on BUILDPLATFORM for optional binary compression
+ARG UPX_VERSION=4.2.4
+ARG UPX_AMD64_SHA256=75cab4e57ab72fb4585ee45ff36388d280c7afd72aa03e8d4b9c3cbddb474193
+ARG UPX_ARM64_SHA256=6bfeae6714e34a82e63245289888719c41fd6af29f749a44ae3d3d166ba6a1c9
+
+RUN case "$BUILDPLATFORM" in \
+      "linux/amd64"|"amd64") UPX_ARCH="amd64"; UPX_SHA="$UPX_AMD64_SHA256" ;; \
+      "linux/arm64"|"arm64") UPX_ARCH="arm64"; UPX_SHA="$UPX_ARM64_SHA256" ;; \
+      *) UPX_ARCH=""; UPX_SHA="" ;; \
+    esac; \
+    if [ -n "$UPX_ARCH" ]; then \
+      curl -sL "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-${UPX_ARCH}_linux.tar.xz" -o /tmp/upx.tar.xz \
+      && echo "${UPX_SHA}  /tmp/upx.tar.xz" | sha256sum -c - \
+      && tar -xJf /tmp/upx.tar.xz -C /tmp \
+      && mv /tmp/upx-${UPX_VERSION}-${UPX_ARCH}_linux/upx /usr/local/bin/upx \
+      && rm -rf /tmp/upx* ; \
+    fi
+
 # Add .docker config dir
 RUN mkdir -p /kaniko/.docker
 
@@ -37,8 +55,16 @@ RUN mkdir -p /licenses/go \
 
 FROM builder-base AS builder
 ARG COVER=""
+ARG UPX_COMPRESS="false"
 RUN make COVER="$COVER" out/executor out/warmer \
-    && rm -rf /root/.cache
+    && rm -rf /root/.cache \
+    && if [ "$UPX_COMPRESS" = "true" ] || [ "$UPX_COMPRESS" = "1" ]; then \
+        if command -v upx >/dev/null 2>&1; then \
+            upx --best out/executor out/warmer || echo "UPX compression skipped or unsupported on target platform"; \
+        else \
+            echo "UPX not available for build platform, skipping compression"; \
+        fi; \
+    fi
 
 # The helper names must match the argv[0] dispatch in pkg/creds.
 # A hardlink only shares the file when it is copied in the same layer as the binary.
@@ -52,8 +78,16 @@ RUN mkdir -p /dist/executor /dist/warmer \
 
 FROM builder-base AS builder-slim
 ARG COVER=""
+ARG UPX_COMPRESS="false"
 RUN make COVER="$COVER" out/executor-slim \
-    && rm -rf /root/.cache
+    && rm -rf /root/.cache \
+    && if [ "$UPX_COMPRESS" = "true" ] || [ "$UPX_COMPRESS" = "1" ]; then \
+        if command -v upx >/dev/null 2>&1; then \
+            upx --best out/executor-slim || echo "UPX compression skipped or unsupported on target platform"; \
+        else \
+            echo "UPX not available for build platform, skipping compression"; \
+        fi; \
+    fi
 
 # use musl busybox since it's staticly compiled on all platforms
 # Keep in sync with deploy/sources/busybox.spdx.json.
