@@ -64,7 +64,7 @@ RUN mkdir -p /licenses/go \
 
 FROM builder-base AS builder
 ARG COVER=""
-ARG UPX_COMPRESS="false"
+ARG UPX_COMPRESS=""
 RUN make COVER="$COVER" UPX_COMPRESS="$UPX_COMPRESS" out/executor out/warmer \
     && rm -rf /root/.cache
 
@@ -80,7 +80,7 @@ RUN mkdir -p /dist/executor /dist/warmer \
 
 FROM builder-base AS builder-slim
 ARG COVER=""
-ARG UPX_COMPRESS="false"
+ARG UPX_COMPRESS=""
 RUN make COVER="$COVER" UPX_COMPRESS="$UPX_COMPRESS" out/executor-slim \
     && rm -rf /root/.cache
 

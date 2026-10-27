@@ -42,7 +42,7 @@ WARMER_PACKAGE = $(REPOPATH)/cmd/warmer
 KANIKO_PROJECT = $(REPOPATH)/kaniko
 BUILD_ARG ?=
 COVER ?=
-UPX_COMPRESS ?= false
+UPX_COMPRESS ?=
 
 # Force using Go Modules and always read the dependencies from
 # the `vendor` folder.
