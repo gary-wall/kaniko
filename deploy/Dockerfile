@@ -65,15 +65,8 @@ RUN mkdir -p /licenses/go \
 FROM builder-base AS builder
 ARG COVER=""
 ARG UPX_COMPRESS="false"
-RUN make COVER="$COVER" out/executor out/warmer \
-    && rm -rf /root/.cache \
-    && if [ "$UPX_COMPRESS" = "true" ] || [ "$UPX_COMPRESS" = "1" ]; then \
-        if command -v upx >/dev/null 2>&1; then \
-            upx --best out/executor out/warmer || echo "UPX compression skipped or unsupported on target platform"; \
-        else \
-            echo "UPX not available for build platform, skipping compression"; \
-        fi; \
-    fi
+RUN make COVER="$COVER" UPX_COMPRESS="$UPX_COMPRESS" out/executor out/warmer \
+    && rm -rf /root/.cache
 
 # The helper names must match the argv[0] dispatch in pkg/creds.
 # A hardlink only shares the file when it is copied in the same layer as the binary.
@@ -88,15 +81,8 @@ RUN mkdir -p /dist/executor /dist/warmer \
 FROM builder-base AS builder-slim
 ARG COVER=""
 ARG UPX_COMPRESS="false"
-RUN make COVER="$COVER" out/executor-slim \
-    && rm -rf /root/.cache \
-    && if [ "$UPX_COMPRESS" = "true" ] || [ "$UPX_COMPRESS" = "1" ]; then \
-        if command -v upx >/dev/null 2>&1; then \
-            upx --best out/executor-slim || echo "UPX compression skipped or unsupported on target platform"; \
-        else \
-            echo "UPX not available for build platform, skipping compression"; \
-        fi; \
-    fi
+RUN make COVER="$COVER" UPX_COMPRESS="$UPX_COMPRESS" out/executor-slim \
+    && rm -rf /root/.cache
 
 # use musl busybox since it's staticly compiled on all platforms
 # Keep in sync with deploy/sources/busybox.spdx.json.
@@ -117,6 +103,10 @@ ADD --checksum=sha256:dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab03
 ADD --checksum=sha256:61abdd6930c9c599062d89e916b3e7968783879b6be0ee1c6229dd6169def431 \
     https://raw.githubusercontent.com/bminor/glibc/glibc-2.23/LICENSES /glibc/
 
+FROM scratch AS upx-licenses
+ADD --checksum=sha256:905d4a66d5324e154d976bbf88829d4d9263815a2b97cc40954f06d4a23c28eb \
+    https://raw.githubusercontent.com/upx/upx/v5.2.1/LICENSE /upx/
+
 FROM scratch AS kaniko-base-slim
 
 # Create kaniko directory with world write permission to allow non root run
@@ -125,6 +115,8 @@ COPY --from=busybox /kaniko /kaniko
 COPY --from=builder-base /etc/ssl/certs/ca-certificates.crt /kaniko/ssl/certs/
 COPY files/nsswitch.conf /etc/nsswitch.conf
 COPY --from=builder-base /licenses /kaniko/licenses
+COPY --from=upx-licenses / /kaniko/licenses/
+COPY deploy/sources/upx.spdx.json /kaniko/sbom/upx.spdx.json
 ENV HOME=/root
 ENV USER=root
 ENV PATH=/usr/local/bin:/kaniko

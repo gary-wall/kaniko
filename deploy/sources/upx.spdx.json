@@ -1,0 +1,32 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "upx",
+  "documentNamespace": "https://github.com/osscontainertools/kaniko/deploy/sources/upx.spdx.json",
+  "creationInfo": {
+    "created": "2026-10-20T00:00:00Z",
+    "creators": ["Organization: OSS Container Tools"]
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-upx",
+      "name": "upx",
+      "versionInfo": "5.2.1",
+      "downloadLocation": "https://github.com/upx/upx/releases/download/v5.2.1/upx-5.2.1-src.tar.xz",
+      "checksums": [{"algorithm": "SHA256", "checksumValue": "a7d457be4ef942e46844ee8f301206b111394cbcbde3599747a6904c54ff116b"}],
+      "licenseConcluded": "GPL-2.0-or-later",
+      "licenseDeclared": "GPL-2.0-or-later",
+      "copyrightText": "NOASSERTION",
+      "filesAnalyzed": false,
+      "externalRefs": [{
+        "referenceCategory": "PACKAGE-MANAGER",
+        "referenceType": "purl",
+        "referenceLocator": "pkg:github/upx/upx@v5.2.1?checksum=sha256:a7d457be4ef942e46844ee8f301206b111394cbcbde3599747a6904c54ff116b&download_url=https://github.com/upx/upx/releases/download/v5.2.1/upx-5.2.1-src.tar.xz"
+      }]
+    }
+  ],
+  "relationships": [
+    {"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": "SPDXRef-upx"}
+  ]
+}
