@@ -106,6 +106,10 @@ ADD --checksum=sha256:61abdd6930c9c599062d89e916b3e7968783879b6be0ee1c6229dd6169
 FROM scratch AS upx-licenses
 ADD --checksum=sha256:905d4a66d5324e154d976bbf88829d4d9263815a2b97cc40954f06d4a23c28eb \
     https://raw.githubusercontent.com/upx/upx/v5.2.1/LICENSE /upx/
+ADD --checksum=sha256:8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643 \
+    https://raw.githubusercontent.com/upx/upx/v5.2.1/COPYING /upx/
+ADD --checksum=sha256:845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243 \
+    https://raw.githubusercontent.com/madler/zlib/v1.3.1/LICENSE /zlib/
 
 FROM scratch AS kaniko-base-slim
 
