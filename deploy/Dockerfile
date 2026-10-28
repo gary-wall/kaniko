@@ -25,6 +25,33 @@ ENV GOOS=$TARGETOS
 
 ENV CGO_ENABLED=0
 
+# Install UPX on BUILDPLATFORM for optional binary compression
+ARG BUILDPLATFORM
+ARG UPX_VERSION=5.2.1
+ARG UPX_AMD64_SHA256=402162aad30af47e60dbd767fb2e64ca394ace9727ba1f40283641f1d1b91657
+ARG UPX_ARM64_SHA256=a72d112c5970a904a31da0b9c84f919bc16b9a311787c12245508544a78c7d36
+ARG UPX_ARM_SHA256=d74c0d8bfdd7aad9114470efaa14fa889158f3dbfbc7128ba76c403aee545ef8
+ARG UPX_386_SHA256=44b505d881337ef17ad03f03fd80f2ecdebc3a36077e1dd260ae1b359c713ba5
+ARG UPX_PPC64LE_SHA256=e914046633567c3255a6440bae4d6c13d9f90d458445b47b8474b048ca4072b7
+ARG UPX_RISCV64_SHA256=a8663b4cb6523104a8a807362d0da6f5d6d55f6083152f78fa27fa9c05443c17
+
+RUN case "${BUILDPLATFORM:-linux/amd64}" in \
+      "linux/amd64"|"amd64") UPX_ARCH="amd64"; UPX_SHA="$UPX_AMD64_SHA256" ;; \
+      "linux/arm64"|"arm64") UPX_ARCH="arm64"; UPX_SHA="$UPX_ARM64_SHA256" ;; \
+      "linux/arm/v7"|"linux/arm"|"arm") UPX_ARCH="arm"; UPX_SHA="$UPX_ARM_SHA256" ;; \
+      "linux/386"|"386"|"i386") UPX_ARCH="i386"; UPX_SHA="$UPX_386_SHA256" ;; \
+      "linux/ppc64le"|"ppc64le") UPX_ARCH="powerpc64le"; UPX_SHA="$UPX_PPC64LE_SHA256" ;; \
+      "linux/riscv64"|"riscv64") UPX_ARCH="riscv64"; UPX_SHA="$UPX_RISCV64_SHA256" ;; \
+      *) UPX_ARCH=""; UPX_SHA="" ;; \
+    esac; \
+    if [ -n "$UPX_ARCH" ]; then \
+      curl -sL "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-${UPX_ARCH}_linux.tar.xz" -o /tmp/upx.tar.xz \
+      && echo "${UPX_SHA}  /tmp/upx.tar.xz" | sha256sum -c - \
+      && tar -xJf /tmp/upx.tar.xz -C /tmp \
+      && mv /tmp/upx-${UPX_VERSION}-${UPX_ARCH}_linux/upx /usr/local/bin/upx \
+      && rm -rf /tmp/upx* ; \
+    fi
+
 # Add .docker config dir
 RUN mkdir -p /kaniko/.docker
 
@@ -37,7 +64,8 @@ RUN mkdir -p /licenses/go \
 
 FROM builder-base AS builder
 ARG COVER=""
-RUN make COVER="$COVER" out/executor out/warmer \
+ARG UPX_COMPRESS=""
+RUN make COVER="$COVER" UPX_COMPRESS="$UPX_COMPRESS" out/executor out/warmer \
     && rm -rf /root/.cache
 
 # The helper names must match the argv[0] dispatch in pkg/creds.
@@ -52,7 +80,8 @@ RUN mkdir -p /dist/executor /dist/warmer \
 
 FROM builder-base AS builder-slim
 ARG COVER=""
-RUN make COVER="$COVER" out/executor-slim \
+ARG UPX_COMPRESS=""
+RUN make COVER="$COVER" UPX_COMPRESS="$UPX_COMPRESS" out/executor-slim \
     && rm -rf /root/.cache
 
 # use musl busybox since it's staticly compiled on all platforms
@@ -74,6 +103,14 @@ ADD --checksum=sha256:dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab03
 ADD --checksum=sha256:61abdd6930c9c599062d89e916b3e7968783879b6be0ee1c6229dd6169def431 \
     https://raw.githubusercontent.com/bminor/glibc/glibc-2.23/LICENSES /glibc/
 
+FROM scratch AS upx-licenses
+ADD --checksum=sha256:905d4a66d5324e154d976bbf88829d4d9263815a2b97cc40954f06d4a23c28eb \
+    https://raw.githubusercontent.com/upx/upx/v5.2.1/LICENSE /upx/
+ADD --checksum=sha256:8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643 \
+    https://raw.githubusercontent.com/upx/upx/v5.2.1/COPYING /upx/
+ADD --checksum=sha256:845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243 \
+    https://raw.githubusercontent.com/madler/zlib/v1.3.1/LICENSE /zlib/
+
 FROM scratch AS kaniko-base-slim
 
 # Create kaniko directory with world write permission to allow non root run
@@ -82,6 +119,8 @@ COPY --from=busybox /kaniko /kaniko
 COPY --from=builder-base /etc/ssl/certs/ca-certificates.crt /kaniko/ssl/certs/
 COPY files/nsswitch.conf /etc/nsswitch.conf
 COPY --from=builder-base /licenses /kaniko/licenses
+COPY --from=upx-licenses / /kaniko/licenses/
+COPY deploy/sources/upx.spdx.json /kaniko/sbom/upx.spdx.json
 ENV HOME=/root
 ENV USER=root
 ENV PATH=/usr/local/bin:/kaniko
