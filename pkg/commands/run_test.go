@@ -128,20 +128,24 @@ func TestSetWorkDirIfExists(t *testing.T) {
 	testutil.CheckDeepEqual(t, "", setWorkDirIfExists("doesnot-exists"))
 }
 
-func TestRunCommandWithFlags_TmpfsMount(t *testing.T) {
+// Scenario 1: Pre-existing /a/b, tmpfs target is /a/b/c.
+// Files moved to /a and copied to /a/b during RUN exist after the RUN step.
+func TestRunCommandWithFlags_TmpfsMount_Scenario1(t *testing.T) {
 	tmpDir := t.TempDir()
-	targetPath := filepath.Join(tmpDir, "tmpfs_target")
+	dirA := filepath.Join(tmpDir, "a")
+	dirB := filepath.Join(dirA, "b")
+	targetC := filepath.Join(dirB, "c")
 
-	// Pre-create target directory with a file to test existing target swap & restoration
-	if err := os.MkdirAll(targetPath, 0o755); err != nil {
-		t.Fatalf("failed to create target dir: %v", err)
-	}
-	existingFilePath := filepath.Join(targetPath, "existing.txt")
-	if err := os.WriteFile(existingFilePath, []byte("pre-existing content"), 0o644); err != nil {
-		t.Fatalf("failed to write existing file: %v", err)
+	if err := os.MkdirAll(dirB, 0o755); err != nil {
+		t.Fatalf("failed to create /a/b: %v", err)
 	}
 
-	dockerfileSnippet := "RUN --mount=type=tmpfs,target=" + targetPath + " echo 'hello tmpfs' > " + filepath.Join(targetPath, "newfile.txt")
+	cmdStr := "mkdir -p " + targetC + " && echo 'moved' > " + filepath.Join(targetC, "movefile") +
+		" && echo 'copied' > " + filepath.Join(targetC, "copyfile") +
+		" && mv " + filepath.Join(targetC, "movefile") + " " + filepath.Join(dirA, "movefile") +
+		" && cp " + filepath.Join(targetC, "copyfile") + " " + filepath.Join(dirB, "copyfile")
+
+	dockerfileSnippet := "RUN --mount=type=tmpfs,target=" + targetC + " " + cmdStr
 	res, err := parser.Parse(strings.NewReader(dockerfileSnippet))
 	if err != nil {
 		t.Fatalf("failed to parse Dockerfile snippet: %v", err)
@@ -150,41 +154,51 @@ func TestRunCommandWithFlags_TmpfsMount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse instruction: %v", err)
 	}
-	cmdRun, ok := inst.(*instructions.RunCommand)
-	if !ok {
-		t.Fatalf("expected *instructions.RunCommand, got %T", inst)
-	}
+	cmdRun := inst.(*instructions.RunCommand)
 
 	cfg := &v1.Config{}
 	buildArgs := dockerfile.NewBuildArgs([]string{})
 	fileContext := util.FileContext{Root: tmpDir}
 
-	err = runCommandWithFlags(cfg, buildArgs, cmdRun, fileContext, nil)
-	if err != nil {
+	if err := runCommandWithFlags(cfg, buildArgs, cmdRun, fileContext, nil); err != nil {
 		t.Fatalf("runCommandWithFlags returned error: %v", err)
 	}
 
-	// Verify that the pre-existing file content is restored after RUN execution
-	content, err := os.ReadFile(existingFilePath)
+	// Verify moved file exists in /a
+	movedContent, err := os.ReadFile(filepath.Join(dirA, "movefile"))
 	if err != nil {
-		t.Fatalf("failed to read restored existing file: %v", err)
+		t.Fatalf("failed to read moved file in /a: %v", err)
 	}
-	if string(content) != "pre-existing content" {
-		t.Errorf("expected pre-existing content %q, got %q", "pre-existing content", string(content))
+	if string(movedContent) != "moved\n" {
+		t.Errorf("expected 'moved\\n', got %q", string(movedContent))
 	}
 
-	// Verify that newfile.txt created inside tmpfs mount was cleaned up / discarded
-	newFilePath := filepath.Join(targetPath, "newfile.txt")
-	if _, err := os.Stat(newFilePath); !os.IsNotExist(err) {
-		t.Errorf("expected newfile.txt to be discarded after RUN command, but it exists")
+	// Verify copied file exists in /a/b
+	copiedContent, err := os.ReadFile(filepath.Join(dirB, "copyfile"))
+	if err != nil {
+		t.Fatalf("failed to read copied file in /a/b: %v", err)
+	}
+	if string(copiedContent) != "copied\n" {
+		t.Errorf("expected 'copied\\n', got %q", string(copiedContent))
+	}
+
+	// Verify tmpfs mount target /a/b/c was cleaned up
+	if _, err := os.Stat(targetC); !os.IsNotExist(err) {
+		t.Errorf("expected tmpfs target /a/b/c to be cleaned up after RUN, but it exists")
 	}
 }
 
-func TestRunCommandWithFlags_TmpfsMount_NonExistentTarget(t *testing.T) {
+// Scenario 2: /a/b does NOT exist, tmpfs target is /a/b/c.
+// Files and implicitly created parent directories created inside tmpfs do not exist afterwards.
+func TestRunCommandWithFlags_TmpfsMount_Scenario2(t *testing.T) {
 	tmpDir := t.TempDir()
-	targetPath := filepath.Join(tmpDir, "new_dir", "tmpfs_target")
+	dirA := filepath.Join(tmpDir, "a")
+	dirB := filepath.Join(dirA, "b")
+	targetC := filepath.Join(dirB, "c")
 
-	dockerfileSnippet := "RUN --mount=type=tmpfs,target=" + targetPath + " echo 'hello tmpfs' > " + filepath.Join(targetPath, "newfile.txt")
+	cmdStr := "echo 'tmp' > " + filepath.Join(targetC, "tempfile")
+
+	dockerfileSnippet := "RUN --mount=type=tmpfs,target=" + targetC + " " + cmdStr
 	res, err := parser.Parse(strings.NewReader(dockerfileSnippet))
 	if err != nil {
 		t.Fatalf("failed to parse Dockerfile snippet: %v", err)
@@ -193,22 +207,69 @@ func TestRunCommandWithFlags_TmpfsMount_NonExistentTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse instruction: %v", err)
 	}
-	cmdRun, ok := inst.(*instructions.RunCommand)
-	if !ok {
-		t.Fatalf("expected *instructions.RunCommand, got %T", inst)
-	}
+	cmdRun := inst.(*instructions.RunCommand)
 
 	cfg := &v1.Config{}
 	buildArgs := dockerfile.NewBuildArgs([]string{})
 	fileContext := util.FileContext{Root: tmpDir}
 
-	err = runCommandWithFlags(cfg, buildArgs, cmdRun, fileContext, nil)
-	if err != nil {
+	if err := runCommandWithFlags(cfg, buildArgs, cmdRun, fileContext, nil); err != nil {
 		t.Fatalf("runCommandWithFlags returned error: %v", err)
 	}
 
-	// Verify target path created by ensureDir was cleaned up after RUN
-	if _, err := os.Stat(targetPath); !os.IsNotExist(err) {
-		t.Errorf("expected targetPath %s to be cleaned up, but it exists", targetPath)
+	// Verify targetC /a/b/c was cleaned up after RUN step
+	if _, err := os.Stat(targetC); !os.IsNotExist(err) {
+		t.Errorf("expected target /a/b/c to be cleaned up after RUN, but it exists")
+	}
+}
+
+// Scenario 3: Pre-existing /a, tmpfs target is /a.
+// Pre-existing contents of /a remain unchanged, while new contents written inside /a during RUN do not exist afterwards.
+func TestRunCommandWithFlags_TmpfsMount_Scenario3(t *testing.T) {
+	tmpDir := t.TempDir()
+	dirA := filepath.Join(tmpDir, "a")
+
+	if err := os.MkdirAll(dirA, 0o755); err != nil {
+		t.Fatalf("failed to create /a: %v", err)
+	}
+	preExistingFile := filepath.Join(dirA, "pre_existing.txt")
+	if err := os.WriteFile(preExistingFile, []byte("pre-existing content"), 0o644); err != nil {
+		t.Fatalf("failed to create pre-existing file in /a: %v", err)
+	}
+
+	cmdStr := "echo 'new tmpfs content' > " + filepath.Join(dirA, "new_file.txt")
+
+	dockerfileSnippet := "RUN --mount=type=tmpfs,target=" + dirA + " " + cmdStr
+	res, err := parser.Parse(strings.NewReader(dockerfileSnippet))
+	if err != nil {
+		t.Fatalf("failed to parse Dockerfile snippet: %v", err)
+	}
+	inst, err := instructions.ParseInstruction(res.AST.Children[0])
+	if err != nil {
+		t.Fatalf("failed to parse instruction: %v", err)
+	}
+	cmdRun := inst.(*instructions.RunCommand)
+
+	cfg := &v1.Config{}
+	buildArgs := dockerfile.NewBuildArgs([]string{})
+	fileContext := util.FileContext{Root: tmpDir}
+
+	if err := runCommandWithFlags(cfg, buildArgs, cmdRun, fileContext, nil); err != nil {
+		t.Fatalf("runCommandWithFlags returned error: %v", err)
+	}
+
+	// Verify pre-existing file content remains unchanged
+	content, err := os.ReadFile(preExistingFile)
+	if err != nil {
+		t.Fatalf("failed to read pre-existing file: %v", err)
+	}
+	if string(content) != "pre-existing content" {
+		t.Errorf("expected 'pre-existing content', got %q", string(content))
+	}
+
+	// Verify new file created inside /a during RUN step does not exist afterwards
+	newFile := filepath.Join(dirA, "new_file.txt")
+	if _, err := os.Stat(newFile); !os.IsNotExist(err) {
+		t.Errorf("expected new file created inside tmpfs mount /a to be discarded, but it exists")
 	}
 }
