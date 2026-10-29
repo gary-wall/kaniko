@@ -18,13 +18,13 @@ RUN test -f /a/movefile \
     && test "$(cat /a/b/copyfile)" = "copy content" \
     && test ! -d /a/b/c
 
-# Scenario 2: /a2/b2 does NOT exist prior to tmpfs RUN step, tmpfs mount is /a2/b2/c.
+# Scenario 2: /a2 and /a2/b2 do NOT exist prior to tmpfs RUN step, tmpfs mount is /a2/b2/c.
 RUN --mount=type=tmpfs,target=/a2/b2/c \
     mkdir -p /a2/b2/c \
     && echo "temp" > /a2/b2/c/tempfile
 
-# Verify Scenario 2: /a2/b2/c target created by ensureDir inside tmpfs is cleaned up afterwards.
-RUN test ! -d /a2/b2/c
+# Verify Scenario 2: /a2 (and implicitly /a2/b2 and /a2/b2/c) created by ensureDir is cleaned up afterwards.
+RUN test ! -d /a2
 
 # Scenario 3: Pre-existing /a3 with pre-existing contents, tmpfs mount is /a3.
 RUN mkdir -p /a3 \

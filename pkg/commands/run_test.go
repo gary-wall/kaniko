@@ -188,8 +188,8 @@ func TestRunCommandWithFlags_TmpfsMount_Scenario1(t *testing.T) {
 	}
 }
 
-// Scenario 2: /a/b does NOT exist, tmpfs target is /a/b/c.
-// Files and implicitly created parent directories created inside tmpfs do not exist afterwards.
+// Scenario 2: /a and /a/b do NOT exist, tmpfs target is /a/b/c.
+// Files and implicitly created parent directories created during tmpfs RUN do not exist afterwards.
 func TestRunCommandWithFlags_TmpfsMount_Scenario2(t *testing.T) {
 	tmpDir := t.TempDir()
 	dirA := filepath.Join(tmpDir, "a")
@@ -217,9 +217,9 @@ func TestRunCommandWithFlags_TmpfsMount_Scenario2(t *testing.T) {
 		t.Fatalf("runCommandWithFlags returned error: %v", err)
 	}
 
-	// Verify targetC /a/b/c was cleaned up after RUN step
-	if _, err := os.Stat(targetC); !os.IsNotExist(err) {
-		t.Errorf("expected target /a/b/c to be cleaned up after RUN, but it exists")
+	// Verify root created parent directory /a (and by extension /a/b and /a/b/c) was cleaned up after RUN step
+	if _, err := os.Stat(dirA); !os.IsNotExist(err) {
+		t.Errorf("expected parent directory /a to be cleaned up after RUN, but it exists")
 	}
 }
 
