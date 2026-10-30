@@ -17,6 +17,8 @@ limitations under the License.
 package commands
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"errors"
 	"io"
 	"io/fs"
@@ -998,4 +1000,104 @@ func TestCopyCommand_ExecuteCommand_Extended(t *testing.T) {
 		}
 		testutil.CheckDeepEqual(t, "../bam.txt", linkName)
 	})
+}
+
+func TestAddCommand_ExecuteCommand_TarChown(t *testing.T) {
+	_original := util.FSys
+	util.FSys = util.OSFS{}
+	defer func() { util.FSys = _original }()
+
+	testDir := t.TempDir()
+
+	// Create a tar file inside testDir
+	tarPath := filepath.Join(testDir, "test.tar.gz")
+	tarFile, err := os.Create(tarPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gzw := gzip.NewWriter(tarFile)
+	tw := tar.NewWriter(gzw)
+
+	hdr := &tar.Header{
+		Name:     "in/f",
+		Mode:     0o644,
+		Size:     int64(len("hello")),
+		Typeflag: tar.TypeReg,
+		Uid:      1000,
+		Gid:      1000,
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write([]byte("hello")); err != nil {
+		t.Fatal(err)
+	}
+	tw.Close()
+	gzw.Close()
+	tarFile.Close()
+
+	destDir := filepath.Join(testDir, "local")
+
+	uid := 65534
+	gid := 1000
+	if os.Getuid() != 0 {
+		uid = os.Getuid()
+		gid = os.Getgid()
+	}
+
+	cmd := AddCommand{
+		cmd: &instructions.AddCommand{
+			SourcesAndDest: instructions.SourcesAndDest{
+				SourcePaths: []string{"test.tar.gz"},
+				DestPath:    destDir + "/",
+			},
+			Chown: strconv.Itoa(uid) + ":" + strconv.Itoa(gid),
+		},
+		fileContext: util.FileContext{Root: testDir},
+	}
+
+	cfg := &v1.Config{
+		Cmd:        nil,
+		Env:        []string{},
+		WorkingDir: testDir,
+	}
+
+	err = cmd.ExecuteCommand(cfg, dockerfile.NewBuildArgs([]string{}))
+	if err != nil {
+		t.Fatalf("ExecuteCommand failed: %v", err)
+	}
+
+	// Verify destDir (/local/) ownership
+	fiDest, err := os.Lstat(destDir)
+	if err != nil {
+		t.Fatalf("stat destDir: %v", err)
+	}
+	if stat, ok := fiDest.Sys().(*syscall.Stat_t); ok {
+		if int(stat.Uid) != uid || int(stat.Gid) != gid {
+			t.Errorf("destDir ownership = %d:%d, want %d:%d", stat.Uid, stat.Gid, uid, gid)
+		}
+	}
+
+	// Verify extracted file (/local/in/f) ownership
+	fiFile, err := os.Lstat(filepath.Join(destDir, "in", "f"))
+	if err != nil {
+		t.Fatalf("stat file in/f: %v", err)
+	}
+	if stat, ok := fiFile.Sys().(*syscall.Stat_t); ok {
+		if int(stat.Uid) != uid || int(stat.Gid) != gid {
+			t.Errorf("extracted file ownership = %d:%d, want %d:%d", stat.Uid, stat.Gid, uid, gid)
+		}
+	}
+
+	// Verify implicit parent directory (/local/in) ownership
+	fiImplicit, err := os.Lstat(filepath.Join(destDir, "in"))
+	if err != nil {
+		t.Fatalf("stat implicit dir: %v", err)
+	}
+	if stat, ok := fiImplicit.Sys().(*syscall.Stat_t); ok {
+		if os.Getuid() == 0 && (stat.Uid != 0 || stat.Gid != 0) {
+			t.Errorf("implicit dir ownership = %d:%d, want 0:0", stat.Uid, stat.Gid)
+		}
+	}
 }
