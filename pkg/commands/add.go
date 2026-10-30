@@ -56,9 +56,12 @@ func (a *AddCommand) ExecuteCommand(config *v1.Config, buildArgs *dockerfile.Bui
 		return fmt.Errorf("getting permissions from chmod: %w", err)
 	}
 
-	chownOwner, err := util.GetUserGroup(a.cmd.Chown, replacementEnvs)
-	if err != nil {
-		return fmt.Errorf("getting user group from chown: %w", err)
+	var chownOwner *util.Owner
+	if kConfig.FF.AddChownTar && a.cmd.Chown != "" {
+		chownOwner, err = util.GetUserGroup(a.cmd.Chown, replacementEnvs)
+		if err != nil {
+			return fmt.Errorf("getting user group from chown: %w", err)
+		}
 	}
 
 	var owner *util.Owner
