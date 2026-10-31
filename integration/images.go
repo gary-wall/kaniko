@@ -401,6 +401,7 @@ var platformMap = map[string]v1.Platform{
 
 // Arguments to diffoci when comparing dockerfiles
 var diffArgsMap = map[string][]string{
+	"TestWarmer/test_warmer_Dockerfile_test_issue_oct1212_cache_copy_from": {"--ignore-timestamps"},
 	// /root/.config 0x1c0 0x1ed
 	// I suspect the issue is that /root/.config pre-exists,
 	// it's where we store the docker credentials.
@@ -1108,6 +1109,7 @@ func populateVolumeCache(t *testing.T, config *integrationTestConfig) error {
 		WarmerImage,
 		"-c", cacheDir,
 		"-i", baseImageToCache,
+		"-i", "debian:13.7@sha256:15a71cc87173e191d5046f9c4288db4e8954b67f92e48d9587087826b0afe562",
 	)
 
 	warmerCmd := exec.Command("docker", cmd...)
