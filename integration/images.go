@@ -1108,8 +1108,7 @@ func populateVolumeCache(t *testing.T, config *integrationTestConfig) error {
 	cmd = append(cmd,
 		WarmerImage,
 		"-c", cacheDir,
-		"-i", baseImageToCache,
-		"-i", "debian:13.7@sha256:15a71cc87173e191d5046f9c4288db4e8954b67f92e48d9587087826b0afe562",
+		"-d", path.Join(buildContextPath, "dockerfiles", "Dockerfile_test_issue_oct1212_cache_copy_from"),
 	)
 
 	warmerCmd := exec.Command("docker", cmd...)
