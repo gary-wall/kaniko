@@ -401,6 +401,7 @@ var platformMap = map[string]v1.Platform{
 
 // Arguments to diffoci when comparing dockerfiles
 var diffArgsMap = map[string][]string{
+	"TestWarmer/test_warmer_Dockerfile_test_issue_oct1212_cache_copy_from": {"--ignore-timestamps"},
 	// /root/.config 0x1c0 0x1ed
 	// I suspect the issue is that /root/.config pre-exists,
 	// it's where we store the docker credentials.
@@ -666,6 +667,13 @@ var warmerOutputChecks = map[string]func(string, []byte) error{
 		}
 		return nil
 	},
+	"Dockerfile_test_issue_oct1212_cache_copy_from": func(_ string, out []byte) error {
+		s := fmt.Sprintf("Found sha256:%s in local cache", debian137Digest)
+		if !strings.Contains(string(out), s) {
+			return fmt.Errorf("output must contain %s", s)
+		}
+		return nil
+	},
 }
 
 // expectedWarnings maps a Dockerfile name to a warning substring that must appear in its output.
@@ -832,7 +840,8 @@ func NewDockerFileBuilder() *DockerFileBuilder {
 		"Dockerfile_test_cache_copy_oci":    {},
 	}
 	d.TestWarmerDockerfiles = map[string]struct{}{
-		"Dockerfile_test_issue_mz320": {},
+		"Dockerfile_test_issue_mz320":                   {},
+		"Dockerfile_test_issue_oct1212_cache_copy_from": {},
 	}
 	d.TestMountDockerfiles = map[string]struct{}{
 		"Dockerfile_test_issue_mz1007": {},
@@ -1100,6 +1109,7 @@ func populateVolumeCache(t *testing.T, config *integrationTestConfig) error {
 		WarmerImage,
 		"-c", cacheDir,
 		"-i", baseImageToCache,
+		"-i", "debian:13.7@sha256:15a71cc87173e191d5046f9c4288db4e8954b67f92e48d9587087826b0afe562",
 	)
 
 	warmerCmd := exec.Command("docker", cmd...)
