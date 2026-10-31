@@ -1,0 +1,40 @@
+ARG IMAGE_REPO
+FROM ${IMAGE_REPO}busybox
+
+# Scenario 1: /a/b exists, tmpfs mount is /a/b/c. Two files movefile and copyfile created in c/.
+# movefile is moved to /a and copyfile is copied to /a/b.
+RUN mkdir -p /a/b
+RUN --mount=type=tmpfs,target=/a/b/c \
+    mkdir -p /a/b/c \
+    && echo "move content" > /a/b/c/movefile \
+    && echo "copy content" > /a/b/c/copyfile \
+    && mv /a/b/c/movefile /a/movefile \
+    && cp /a/b/c/copyfile /a/b/copyfile
+
+# Verify Scenario 1: moved and copied files exist after tmpfs mount RUN step, while tmpfs mount /a/b/c is cleaned up.
+RUN test -f /a/movefile \
+    && test "$(cat /a/movefile)" = "move content" \
+    && test -f /a/b/copyfile \
+    && test "$(cat /a/b/copyfile)" = "copy content" \
+    && test ! -d /a/b/c
+
+# Scenario 2: /a2 and /a2/b2 do NOT exist prior to tmpfs RUN step, tmpfs mount is /a2/b2/c.
+RUN --mount=type=tmpfs,target=/a2/b2/c \
+    mkdir -p /a2/b2/c \
+    && echo "temp" > /a2/b2/c/tempfile
+
+# Verify Scenario 2: /a2 (and implicitly /a2/b2 and /a2/b2/c) created by ensureDir is cleaned up afterwards.
+RUN test ! -d /a2
+
+# Scenario 3: Pre-existing /a3 with pre-existing contents, tmpfs mount is /a3.
+RUN mkdir -p /a3 \
+    && echo "pre-existing content" > /a3/existing.txt
+
+RUN --mount=type=tmpfs,target=/a3 \
+    test ! -f /a3/existing.txt \
+    && echo "new tmpfs content" > /a3/newfile.txt
+
+# Verify Scenario 3: pre-existing contents of /a3 remain unchanged after RUN, and new file created in tmpfs is discarded.
+RUN test -f /a3/existing.txt \
+    && test "$(cat /a3/existing.txt)" = "pre-existing content" \
+    && test ! -f /a3/newfile.txt
