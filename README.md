@@ -132,6 +132,7 @@ expect - see [Known Issues](#known-issues).
       - [Profiles](#profiles)
       - [Flag `FF_KANIKO_ADD_CHECKSUM`](#flag-ff_kaniko_add_checksum)
       - [Flag `FF_KANIKO_ADD_CHOWN_TAR`](#flag-ff_kaniko_add_chown_tar)
+      - [Flag `FF_KANIKO_ADD_FOLLOW_SYMLINK`](#flag-ff_kaniko_add_follow_symlink)
       - [Flag `FF_KANIKO_ADD_UNPACK`](#flag-ff_kaniko_add_unpack)
       - [Flag `FF_KANIKO_CACHE_HASH_BLAKE3`](#flag-ff_kaniko_cache_hash_blake3)
       - [Flag `FF_KANIKO_CACHE_IMAGE_INDEX`](#flag-ff_kaniko_cache_image_index)
@@ -1260,6 +1261,13 @@ Will be deprecated in `v1.30.0`.
 Set this flag to `true` to apply `--chown` to the extracted files.
 Defaults to `false`.
 Becomes default in `v1.30.0`.
+
+#### Flag `FF_KANIKO_ADD_FOLLOW_SYMLINK`
+
+`ADD <url> /dir/` fails when `/dir` is a symlink to an existing directory because destination parent directory creation refuses symlinks.
+Set this flag to `true` to resolve destination parent directory symlinks and write through them, matching Docker and `COPY`.
+Defaults to `false`.
+Currently no plans to activate.
 
 #### Flag `FF_KANIKO_ADD_UNPACK`
 
