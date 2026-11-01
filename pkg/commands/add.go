@@ -136,6 +136,11 @@ func (a *AddCommand) ExecuteCommand(config *v1.Config, buildArgs *dockerfile.Bui
 		defer os.RemoveAll(staging)
 	}
 
+	cwd := config.WorkingDir
+	if !filepath.IsAbs(cwd) {
+		cwd = filepath.Join(kConfig.RootDir, cwd)
+	}
+
 	var unresolvedSrcs []string
 	// If any of the sources are local tar archives:
 	// 	1. Unpack them to the specified destination
@@ -145,7 +150,7 @@ func (a *AddCommand) ExecuteCommand(config *v1.Config, buildArgs *dockerfile.Bui
 	for _, src := range srcs {
 		fullPath := filepath.Join(a.fileContext.Root, src)
 		if util.IsSrcRemoteFileURL(src) {
-			urlDest, err := util.URLDestinationFilepath(src, dest, config.WorkingDir, replacementEnvs)
+			urlDest, err := util.URLDestinationFilepath(src, dest, cwd, replacementEnvs)
 			if err != nil {
 				return err
 			}
@@ -157,6 +162,12 @@ func (a *AddCommand) ExecuteCommand(config *v1.Config, buildArgs *dockerfile.Bui
 				if err != nil {
 					return fmt.Errorf("materializing link destination: %w", err)
 				}
+			} else if kConfig.FF.AddFollowSymlink {
+				urlDest, err = resolveIfSymlink(urlDest)
+				if err != nil {
+					return fmt.Errorf("resolving dest symlink: %w", err)
+				}
+				download = urlDest
 			}
 			logrus.Infof("Adding remote URL %s to %s", src, urlDest)
 			if err := util.DownloadFileToDest(src, download, owner, chmod.Apply(0o600), checksum); err != nil {
@@ -167,7 +178,7 @@ func (a *AddCommand) ExecuteCommand(config *v1.Config, buildArgs *dockerfile.Bui
 			case !unpackRemote:
 				a.snapshotFiles = append(a.snapshotFiles, urlDest)
 			case util.IsFileTarArchive(download):
-				tarDest, err := util.DestinationFilepath("", dest, config.WorkingDir)
+				tarDest, err := util.DestinationFilepath("", dest, cwd)
 				if err != nil {
 					return fmt.Errorf("determining dest for tar: %w", err)
 				}
@@ -233,7 +244,7 @@ func (a *AddCommand) ExecuteCommand(config *v1.Config, buildArgs *dockerfile.Bui
 					return err
 				}
 			}
-			tarDest, err := util.DestinationFilepath("", dest, config.WorkingDir)
+			tarDest, err := util.DestinationFilepath("", dest, cwd)
 			if err != nil {
 				return fmt.Errorf("determining dest for tar: %w", err)
 			}

@@ -132,6 +132,7 @@ expect - see [Known Issues](#known-issues).
       - [Profiles](#profiles)
       - [Flag `FF_KANIKO_ADD_CHECKSUM`](#flag-ff_kaniko_add_checksum)
       - [Flag `FF_KANIKO_ADD_CHOWN_TAR`](#flag-ff_kaniko_add_chown_tar)
+      - [Flag `FF_KANIKO_ADD_FOLLOW_SYMLINK`](#flag-ff_kaniko_add_follow_symlink)
       - [Flag `FF_KANIKO_ADD_UNPACK`](#flag-ff_kaniko_add_unpack)
       - [Flag `FF_KANIKO_BAKE_CONTEXT_DOCKERFILE`](#flag-ff_kaniko_bake_context_dockerfile)
       - [Flag `FF_KANIKO_CACHE_HASH_BLAKE3`](#flag-ff_kaniko_cache_hash_blake3)
@@ -174,6 +175,8 @@ expect - see [Known Issues](#known-issues).
       - [Flag `FF_KANIKO_ROLLING_CACHE_KEY`](#flag-ff_kaniko_rolling_cache_key)
       - [Flag `FF_KANIKO_RUN_HEREDOC_SCRIPT`](#flag-ff_kaniko_run_heredoc_script)
       - [Flag `FF_KANIKO_RUN_HONOR_GROUP`](#flag-ff_kaniko_run_honor_group)
+      - [Flag `FF_KANIKO_RUN_MOUNT_BIND_RELATIVE`](#flag-ff_kaniko_run_mount_bind_relative)
+      - [Flag `FF_KANIKO_RUN_MOUNT_TMPFS`](#flag-ff_kaniko_run_mount_tmpfs)
       - [Flag `FF_KANIKO_RUN_VIA_TINI`](#flag-ff_kaniko_run_via_tini)
       - [Flag `FF_KANIKO_SCOPED_DOCKERIGNORE`](#flag-ff_kaniko_scoped_dockerignore)
       - [Flag `FF_KANIKO_SCOPED_REGISTRY_CERTIFICATES`](#flag-ff_kaniko_scoped_registry_certificates)
@@ -1262,6 +1265,12 @@ Set this flag to `true` to apply `--chown` to the extracted files.
 Defaults to `false`.
 Becomes default in `v1.30.0`.
 
+#### Flag `FF_KANIKO_ADD_FOLLOW_SYMLINK`
+
+`ADD <url> /dir/` fails with `destination cannot be a symlink` when `/dir` is a symlink to a directory.
+Set this flag to `true` to write the download through the symlink. Defaults to `false`.
+Becomes default in `v1.30.0`.
+
 #### Flag `FF_KANIKO_ADD_UNPACK`
 
 `ADD --unpack=<bool>` overrides whether a tar archive is extracted. A local archive is extracted and a URL download is not, so `--unpack=false` adds a local archive as a file and `--unpack=true` extracts a download. A source that turns out not to be an archive is added as a file either way. With this flag off kaniko parses the modifier and ignores it, so both sources keep their default treatment.
@@ -1565,6 +1574,18 @@ When a stage sets `USER user:group`, `RUN` applies only the user and the gid fal
 Set this flag to `true` to pass the full `user:group` to the command so `RUN` runs with the requested group, matching docker.
 Defaults to `true`.
 Will be deprecated in `v1.30.0`.
+
+#### Flag `FF_KANIKO_RUN_MOUNT_BIND_RELATIVE`
+
+A relative `RUN --mount=type=bind` target resolves against `/`, whatever the `WORKDIR` is.
+Set this flag to `true` to resolve it against `WORKDIR`. Defaults to `false`.
+Becomes default in `v1.30.0`.
+
+#### Flag `FF_KANIKO_RUN_MOUNT_TMPFS`
+
+Supports `--mount=type=tmpfs` flags in `RUN` instructions. The target is an empty directory for the duration of the command, and its contents are discarded afterwards.
+Set this flag to `true` to enable tmpfs mounts in `RUN` statements.
+Defaults to `false`.
 
 #### Flag `FF_KANIKO_RUN_VIA_TINI`
 

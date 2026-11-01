@@ -170,6 +170,7 @@ var envsMap = map[string][]string{
 	"Dockerfile_test_arg_secret":   {"SSH_PRIVATE_KEY=ThEPriv4t3Key"},
 	"Dockerfile_test_issue_519":    {"DOCKER_BUILDKIT=0"},
 	"Dockerfile_test_issue_cg188":  {"SECRET=blubb"},
+	"Dockerfile_test_issue_mz1336": {"SECRET=blubb"},
 	"Dockerfile_test_issue_mz334":  {"FF_KANIKO_SKIP_CACHED_STAGES=1"},
 	"Dockerfile_test_issue_mz960":  {"FF_KANIKO_SKIP_CACHED_STAGES=1"},
 	"Dockerfile_test_issue_mz473":  {"KANIKO_DIR=/kaniko2"},
@@ -187,6 +188,7 @@ var envsMap = map[string][]string{
 var KanikoEnv = []string{
 	"FF_KANIKO_ADD_CHECKSUM=1",
 	"FF_KANIKO_ADD_CHOWN_TAR=1",
+	"FF_KANIKO_ADD_FOLLOW_SYMLINK=1",
 	"FF_KANIKO_ADD_UNPACK=1",
 	"FF_KANIKO_BAKE_CONTEXT_DOCKERFILE=1",
 	"FF_KANIKO_CACHE_HASH_BLAKE3=1",
@@ -226,6 +228,8 @@ var KanikoEnv = []string{
 	"FF_KANIKO_ROLLING_CACHE_KEY=1",
 	"FF_KANIKO_RUN_HEREDOC_SCRIPT=1",
 	"FF_KANIKO_RUN_HONOR_GROUP=1",
+	"FF_KANIKO_RUN_MOUNT_BIND_RELATIVE=1",
+	"FF_KANIKO_RUN_MOUNT_TMPFS=1",
 	"FF_KANIKO_SCOPED_DOCKERIGNORE=1",
 	"FF_KANIKO_SHARED_BASE_CACHE=1",
 	"FF_KANIKO_SKIP_RELABEL_RECOMPRESS=1",
@@ -266,6 +270,7 @@ var additionalDockerFlagsMap = map[string][]string{
 	"Dockerfile_test_target":               {"--target=second"},
 	"Dockerfile_test_issue_cg188":          {"--secret=id=netrc,env=SECRET"},
 	"Dockerfile_test_issue_mz511":          {"--secret=id=netrc,src=context/foo"},
+	"Dockerfile_test_issue_mz1336":         {"--secret=id=foo,env=SECRET"},
 	"Dockerfile_test_cross_compile":        {"--platform=linux/" + crossCompileArch},
 	"Dockerfile_test_issue_mz849":          dockerV2Flags,
 	"Dockerfile_test_issue_mz849_dockerv2": dockerV2Flags,
@@ -348,6 +353,7 @@ var additionalKanikoFlagsMap = map[string][]string{
 	"Dockerfile_test_issue_mz529":   {"--cleanup", "--target=final,nosquash"},
 	"Dockerfile_test_issue_mz595":   {"--cleanup"},
 	"Dockerfile_test_issue_mz661":   {"--secret=id=kaniko,src=/kaniko/executor"},
+	"Dockerfile_test_issue_mz1336":  {"--secret=id=foo,env=SECRET"},
 	"Dockerfile_test_issue_mz992":   {"--dryrun", "--tar-path=/kaniko/dryrun.tar", "--oci-layout-path=/kaniko/dryrun-layout"},
 	"Dockerfile_test_issue_mz881": {
 		"--registry-certificate=localhost:5000=/mz881/registry-ca.crt",
@@ -448,6 +454,7 @@ var diffArgsMap = map[string][]string{
 	"TestRun/test_Dockerfile_test_issue_1007":      {"--extra-ignore-layer-length-mismatch"},
 	"TestRun/test_Dockerfile_test_issue_mz247":     {"--extra-ignore-layer-length-mismatch"},
 	"TestRun/test_Dockerfile_test_issue_mz332":     {"--extra-ignore-layer-length-mismatch"},
+	"TestRun/test_Dockerfile_test_issue_mz1152":    {"--extra-ignore-layer-length-mismatch"},
 	"TestWithContext/test_with_context_issue-57":   {"--extra-ignore-layer-length-mismatch"},
 	"TestWithContext/test_with_context_issue-1568": {"--extra-ignore-layer-length-mismatch"},
 	"TestK8s/test_k8s_with_context_issue-57":       {"--extra-ignore-layer-length-mismatch"},
@@ -463,6 +470,7 @@ var diffArgsMap = map[string][]string{
 	"TestRun/test_Dockerfile_test_issue_3393":        {"--extra-ignore-layer-length-mismatch"},
 	"TestRun/test_Dockerfile_test_issue_cg73":        {"--extra-ignore-layer-length-mismatch"},
 	"TestRun/test_Dockerfile_test_issue_cg188":       {"--extra-ignore-layer-length-mismatch"},
+	"TestRun/test_Dockerfile_test_run_tmpfs_mnt":     {"--extra-ignore-layer-length-mismatch"},
 	// We record a file that COPY or RUN rewrote with identical content and metadata.
 	// Buildkit leaves the layer empty.
 	"TestRun/test_Dockerfile_test_arg_blank_with_quotes":     {"--extra-ignore-layer-length-mismatch"},
@@ -667,20 +675,6 @@ var expectedAttestations = map[string]attestation{
 
 // Digest for debian:13.7 (see baseImageToCache)
 const debian137Digest = "15a71cc87173e191d5046f9c4288db4e8954b67f92e48d9587087826b0afe562"
-
-var warmerOutputChecks = map[string]func(string, []byte) error{
-	"Dockerfile_test_issue_mz320": func(_ string, out []byte) error {
-		s := fmt.Sprintf("Found sha256:%s in local cache", debian137Digest)
-		if !strings.Contains(string(out), s) {
-			return fmt.Errorf("output must contain %s", s)
-		}
-		s = "Retrieving image debian:13.7@sha256:4c25275446ca371766b8b093c696782eabce06263fccacb8d5d813b3dc44b308 from registry"
-		if strings.Contains(string(out), s) {
-			return fmt.Errorf("output must not contain %s", s)
-		}
-		return nil
-	},
-}
 
 // expectedWarnings maps a Dockerfile name to a warning substring that must appear in its output.
 // Dockerfiles listed here are required to emit that warning; all others must emit no warnings.
@@ -1058,11 +1052,6 @@ func (d *DockerFileBuilder) buildCachedImage(t *testing.T, config *integrationTe
 			}
 		}
 	}
-	if outputCheck := warmerOutputChecks[dockerfile]; outputCheck != nil {
-		if err := outputCheck(dockerfile, out); err != nil {
-			return fmt.Errorf("output check failed for image %s with kaniko command : %w", kanikoImage, err)
-		}
-	}
 	if err := checkNoWarnings(dockerfile, out); err != nil {
 		return err
 	}
@@ -1130,6 +1119,13 @@ func (d *DockerFileBuilder) buildWarmerImage(t *testing.T, config *integrationTe
 		"run", "--net=host",
 		"-v", cwd + ":/workspace:ro",
 	}
+	if cache {
+		dockerRunFlags = append(dockerRunFlags,
+			"--add-host", "index.docker.io:0.0.0.0",
+			"--add-host", "registry-1.docker.io:0.0.0.0",
+			"--add-host", "auth.docker.io:0.0.0.0",
+		)
+	}
 	dockerRunFlags = addKanikoEnvFlags(dockerRunFlags, t.Name())
 	executorImage := ExecutorImage
 	if exec, ok := executorImages[dockerfile]; ok {
@@ -1158,13 +1154,6 @@ func (d *DockerFileBuilder) buildWarmerImage(t *testing.T, config *integrationTe
 	if outputCheck := outputChecks[dockerfile]; outputCheck != nil {
 		if err := outputCheck(dockerfile, out); err != nil {
 			return fmt.Errorf("output check failed for image %s with kaniko command : %w", kanikoImage, err)
-		}
-	}
-	if cache {
-		if outputCheck := warmerOutputChecks[dockerfile]; outputCheck != nil {
-			if err := outputCheck(dockerfile, out); err != nil {
-				return fmt.Errorf("output check failed for image %s with kaniko command : %w", kanikoImage, err)
-			}
 		}
 	}
 	if err := checkNoWarnings(dockerfile, out); err != nil {

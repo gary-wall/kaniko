@@ -29,6 +29,7 @@ import (
 type FeatureFlags struct {
 	AddChecksum                    bool
 	AddChownTar                    bool
+	AddFollowSymlink               bool
 	AddUnpack                      bool
 	BakeContextDockerfile          bool
 	CacheHashBlake3                bool
@@ -71,6 +72,8 @@ type FeatureFlags struct {
 	RollingCacheKey                bool
 	RunHeredocScript               bool
 	RunHonorGroup                  bool
+	RunMountBindRelative           bool
+	RunMountTmpfs                  bool
 	RunViaTini                     bool
 	ScopedDockerignore             bool
 	ScopedRegistryCertificates     bool
@@ -120,6 +123,7 @@ func InitFeatureFlags() {
 	FF = FeatureFlags{
 		AddChecksum:                    featureFlag("FF_KANIKO_ADD_CHECKSUM", true),
 		AddChownTar:                    featureFlag("FF_KANIKO_ADD_CHOWN_TAR", false),
+		AddFollowSymlink:               featureFlag("FF_KANIKO_ADD_FOLLOW_SYMLINK", false),
 		AddUnpack:                      featureFlag("FF_KANIKO_ADD_UNPACK", true),
 		BakeContextDockerfile:          featureFlag("FF_KANIKO_BAKE_CONTEXT_DOCKERFILE", false),
 		CacheHashBlake3:                featureFlag("FF_KANIKO_CACHE_HASH_BLAKE3", true),
@@ -162,6 +166,8 @@ func InitFeatureFlags() {
 		RollingCacheKey:                featureFlag("FF_KANIKO_ROLLING_CACHE_KEY", true),
 		RunHeredocScript:               featureFlag("FF_KANIKO_RUN_HEREDOC_SCRIPT", false),
 		RunHonorGroup:                  featureFlag("FF_KANIKO_RUN_HONOR_GROUP", true),
+		RunMountBindRelative:           featureFlag("FF_KANIKO_RUN_MOUNT_BIND_RELATIVE", false),
+		RunMountTmpfs:                  featureFlag("FF_KANIKO_RUN_MOUNT_TMPFS", false),
 		RunViaTini:                     featureFlag("FF_KANIKO_RUN_VIA_TINI", false),
 		ScopedDockerignore:             featureFlag("FF_KANIKO_SCOPED_DOCKERIGNORE", false),
 		ScopedRegistryCertificates:     featureFlag("FF_KANIKO_SCOPED_REGISTRY_CERTIFICATES", true),
