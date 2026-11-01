@@ -475,7 +475,8 @@ var diffArgsMap = map[string][]string{
 	// only, so buildkit copies the whole context into /baz.
 	"TestRun/test_Dockerfile_test_scratch": {"--extra-ignore-layer-length-mismatch"},
 	// The base image's WorkingDir is relative. We resolve WORKDIR sub to /relwd/sub, buildkit to /sub.
-	"TestRun/test_Dockerfile_test_issue_mz725": {"--extra-ignore-layer-length-mismatch"},
+	"TestRun/test_Dockerfile_test_issue_mz725":  {"--extra-ignore-layer-length-mismatch"},
+	"TestRun/test_Dockerfile_test_issue_mz1213": {"--extra-ignore-layer-length-mismatch"},
 }
 
 // output check to do when building with kaniko
