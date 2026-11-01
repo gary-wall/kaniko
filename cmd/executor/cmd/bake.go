@@ -90,6 +90,14 @@ func ApplyTarget(opts *config.KanikoOptions, target bake.ResolvedTarget) {
 		opts.Target = []string{target.Stage}
 	}
 	opts.Destinations = target.Destination
+	if config.FF.BakeContextDockerfile {
+		if target.Context != "" {
+			opts.SrcContext = target.Context
+		}
+		if target.Dockerfile != "" {
+			opts.DockerfilePath = target.Dockerfile
+		}
+	}
 }
 
 var bakeCmd = &cobra.Command{

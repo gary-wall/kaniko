@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -27,19 +28,25 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/hcl/token"
+	"github.com/osscontainertools/kaniko/pkg/config"
 )
 
 type Target struct {
+	Context     string   `hcl:"context"`
+	Dockerfile  string   `hcl:"dockerfile"`
 	Target      string   `hcl:"target"`
 	Destination []string `hcl:"destination"`
 }
 
 type Bakefile struct {
+	Dir     string
 	Targets map[string]Target `hcl:"target"`
 }
 
 type ResolvedTarget struct {
 	ID          string
+	Context     string
+	Dockerfile  string
 	Stage       string
 	Destination []string
 }
@@ -53,6 +60,7 @@ func Parse(path string) (*Bakefile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+	b.Dir = filepath.Dir(path)
 	return b, nil
 }
 
@@ -79,8 +87,9 @@ func parse(data []byte) (*Bakefile, error) {
 }
 
 var (
-	topKeys    = []string{"target"}
-	targetKeys = []string{"target", "destination"}
+	topKeys                         = []string{"target"}
+	targetKeys                      = []string{"target", "destination"}
+	targetKeysWithContextDockerfile = []string{"target", "destination", "context", "dockerfile"}
 )
 
 // Keys a docker-bake.hcl would use. The bakefile keeps kaniko's own vocabulary, so
@@ -133,17 +142,21 @@ func validate(list *ast.ObjectList) error {
 }
 
 func validateTarget(label string, list *ast.ObjectList) error {
+	allowed := targetKeys
+	if config.FF.BakeContextDockerfile {
+		allowed = targetKeysWithContextDockerfile
+	}
 	for _, item := range list.Items {
 		if len(item.Keys) == 0 {
 			return fmt.Errorf("%s: unnamed key in target %q", item.Pos(), label)
 		}
 		key := keyName(item.Keys[0])
-		if !slices.Contains(targetKeys, key) {
+		if !slices.Contains(allowed, key) {
 			hint, known := bakeHints[key]
 			if known {
 				return fmt.Errorf("%s: %q in target %q is a docker-bake.hcl key, %s", item.Pos(), key, label, hint)
 			}
-			return fmt.Errorf("%s: unsupported key %q in target %q, expected one of %s", item.Pos(), key, label, strings.Join(targetKeys, ", "))
+			return fmt.Errorf("%s: unsupported key %q in target %q, expected one of %s", item.Pos(), key, label, strings.Join(allowed, ", "))
 		}
 		if len(item.Keys) > 1 {
 			return fmt.Errorf("%s: key %q in target %q takes no name", item.Pos(), key, label)
@@ -204,9 +217,33 @@ func (b *Bakefile) Resolve(selected []string) ([]ResolvedTarget, error) {
 		if stage == "" {
 			stage = id
 		}
-		resolved = append(resolved, ResolvedTarget{ID: id, Stage: stage, Destination: t.Destination})
+		targetCtx := t.Context
+		targetDockerfile := t.Dockerfile
+		if config.FF.BakeContextDockerfile {
+			if targetCtx != "" && !filepath.IsAbs(targetCtx) && b.Dir != "" && !isURL(targetCtx) {
+				targetCtx = filepath.Join(b.Dir, targetCtx)
+			}
+			if targetDockerfile != "" && !filepath.IsAbs(targetDockerfile) && !isURL(targetDockerfile) {
+				if targetCtx != "" {
+					targetDockerfile = filepath.Join(targetCtx, targetDockerfile)
+				} else if b.Dir != "" {
+					targetDockerfile = filepath.Join(b.Dir, targetDockerfile)
+				}
+			}
+		}
+		resolved = append(resolved, ResolvedTarget{
+			ID:          id,
+			Context:     targetCtx,
+			Dockerfile:  targetDockerfile,
+			Stage:       stage,
+			Destination: t.Destination,
+		})
 	}
 	return resolved, nil
+}
+
+func isURL(path string) bool {
+	return strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") || strings.Contains(path, "://")
 }
 
 type Override struct {
@@ -233,6 +270,8 @@ func ApplyOverrides(targets []ResolvedTarget, overrides []Override) error {
 		idx[t.ID] = i
 	}
 	dests := map[int][]string{}
+	contexts := map[int]string{}
+	dockerfiles := map[int]string{}
 	for _, o := range overrides {
 		i, ok := idx[o.Target]
 		if !ok {
@@ -241,12 +280,28 @@ func ApplyOverrides(targets []ResolvedTarget, overrides []Override) error {
 		switch o.Field {
 		case "destination":
 			dests[i] = append(dests[i], o.Value)
+		case "context":
+			if !config.FF.BakeContextDockerfile {
+				return fmt.Errorf("--set field %q is not supported", o.Field)
+			}
+			contexts[i] = o.Value
+		case "dockerfile":
+			if !config.FF.BakeContextDockerfile {
+				return fmt.Errorf("--set field %q is not supported", o.Field)
+			}
+			dockerfiles[i] = o.Value
 		default:
 			return fmt.Errorf("--set field %q is not supported", o.Field)
 		}
 	}
 	for i, d := range dests {
 		targets[i].Destination = d
+	}
+	for i, c := range contexts {
+		targets[i].Context = c
+	}
+	for i, df := range dockerfiles {
+		targets[i].Dockerfile = df
 	}
 	return nil
 }

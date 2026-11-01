@@ -30,6 +30,7 @@ type FeatureFlags struct {
 	AddChecksum                    bool
 	AddChownTar                    bool
 	AddUnpack                      bool
+	BakeContextDockerfile          bool
 	CacheHashBlake3                bool
 	CacheImageIndex                bool
 	CacheLookahead                 bool
@@ -120,6 +121,7 @@ func InitFeatureFlags() {
 		AddChecksum:                    featureFlag("FF_KANIKO_ADD_CHECKSUM", true),
 		AddChownTar:                    featureFlag("FF_KANIKO_ADD_CHOWN_TAR", false),
 		AddUnpack:                      featureFlag("FF_KANIKO_ADD_UNPACK", true),
+		BakeContextDockerfile:          featureFlag("FF_KANIKO_BAKE_CONTEXT_DOCKERFILE", false),
 		CacheHashBlake3:                featureFlag("FF_KANIKO_CACHE_HASH_BLAKE3", true),
 		CacheImageIndex:                featureFlag("FF_KANIKO_CACHE_IMAGE_INDEX", false),
 		CacheLookahead:                 featureFlag("FF_KANIKO_CACHE_LOOKAHEAD", true),

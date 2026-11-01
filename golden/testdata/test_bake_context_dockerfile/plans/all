@@ -1,0 +1,8 @@
+FROM scratch AS app
+COPY app.txt /app.txt
+PUSH [registry.example.com/app:latest]
+  UPLOAD COPY app.txt /app.txt
+FROM scratch AS tools
+COPY tools.txt /tools.txt
+PUSH [registry.example.com/tools:latest]
+  UPLOAD COPY tools.txt /tools.txt
