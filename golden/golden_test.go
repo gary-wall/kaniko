@@ -337,8 +337,9 @@ func TestBake(t *testing.T) {
 
 							var output string
 							for _, target := range targets {
-								cmd.ApplyTarget(&opts, target)
-								output += renderPlan(t, &opts, test)
+								targetOpts := opts
+								cmd.ApplyTarget(&targetOpts, target)
+								output += renderPlan(t, &targetOpts, test)
 							}
 							comparePlan(t, filepath.Join(testDir, "plans", test.Plan), output)
 						})

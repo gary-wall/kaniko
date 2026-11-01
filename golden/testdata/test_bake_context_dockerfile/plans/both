@@ -1,4 +1,4 @@
 FROM scratch AS app
 COPY app.txt /app.txt
-PUSH [registry.example.com/app:latest]
+PUSH [registry.example.com/both:latest]
   UPLOAD COPY app.txt /app.txt

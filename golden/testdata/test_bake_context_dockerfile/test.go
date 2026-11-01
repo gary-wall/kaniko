@@ -7,13 +7,23 @@ var Tests = types.GoldenTests{
 	Dockerfile: "Dockerfile",
 	Tests: []types.GoldenTest{
 		{
-			Args: []string{"app"},
-			Plan: "app",
+			Args: []string{"both"},
+			Plan: "both",
 			Env:  map[string]string{"FF_KANIKO_BAKE_CONTEXT_DOCKERFILE": "1"},
 		},
 		{
-			Args: []string{"tools"},
-			Plan: "tools",
+			Args: []string{"only_context"},
+			Plan: "only_context",
+			Env:  map[string]string{"FF_KANIKO_BAKE_CONTEXT_DOCKERFILE": "1"},
+		},
+		{
+			Args: []string{"only_dockerfile"},
+			Plan: "only_dockerfile",
+			Env:  map[string]string{"FF_KANIKO_BAKE_CONTEXT_DOCKERFILE": "1"},
+		},
+		{
+			Args: []string{"neither"},
+			Plan: "neither",
 			Env:  map[string]string{"FF_KANIKO_BAKE_CONTEXT_DOCKERFILE": "1"},
 		},
 		{

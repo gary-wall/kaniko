@@ -1,4 +1,0 @@
-FROM scratch AS tools
-COPY tools.txt /tools.txt
-PUSH [registry.example.com/tools:latest]
-  UPLOAD COPY tools.txt /tools.txt
