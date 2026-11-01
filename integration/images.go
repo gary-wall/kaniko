@@ -401,7 +401,7 @@ var platformMap = map[string]v1.Platform{
 
 // Arguments to diffoci when comparing dockerfiles
 var diffArgsMap = map[string][]string{
-	"TestWarmer/test_warmer_Dockerfile_test_issue_oct1212_cache_copy_from": {"--ignore-timestamps"},
+	"TestWarmer/test_warmer_Dockerfile_test_issue_oct1212_cache_copy_from": {"--semantic", "--ignore-file-atime"},
 	// /root/.config 0x1c0 0x1ed
 	// I suspect the issue is that /root/.config pre-exists,
 	// it's where we store the docker credentials.
