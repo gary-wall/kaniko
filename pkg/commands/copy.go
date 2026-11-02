@@ -413,10 +413,17 @@ func resolveIfSymlink(destPath string) (string, error) {
 			}
 		}
 
-		newPath, err = filepath.EvalSymlinks(newPath)
+		evaled, err := filepath.EvalSymlinks(newPath)
 		if err != nil {
+			if kConfig.FF.CopyDanglingSymlink && os.IsNotExist(err) {
+				dir, file := filepath.Split(newPath)
+				newPath = filepath.Clean(dir)
+				nonexistentPaths = append(nonexistentPaths, file)
+				continue
+			}
 			return "", fmt.Errorf("failed to eval symlinks: %w", err)
 		}
+		newPath = evaled
 		break
 	}
 

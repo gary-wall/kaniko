@@ -196,6 +196,7 @@ var KanikoEnv = []string{
 	"FF_KANIKO_CHOWN_ON_IMPLICIT_DIRS=1",
 	"FF_KANIKO_COPY_AS_ROOT=1",
 	"FF_KANIKO_COPY_CHMOD_ON_IMPLICIT_DIRS=1",
+	"FF_KANIKO_COPY_DANGLING_SYMLINK=1",
 	"FF_KANIKO_COPY_KEEP_DEST_OWNER=1",
 	"FF_KANIKO_COPY_LINK=1",
 	"FF_KANIKO_COPY_SKIP_SPECIAL_FILES=1",
@@ -419,6 +420,7 @@ var diffArgsMap = map[string][]string{
 	"TestRun/test_Dockerfile_test_copy_symlink": {"--extra-ignore-files=workdirAnother/relative_link"},
 	// docker dereferences the symlink source, we preserve it, so dest/linkS diverges.
 	"TestRun/test_Dockerfile_test_issue_mz921":   {"--extra-ignore-files=dest/linkS", "--extra-ignore-layer-length-mismatch"},
+	"TestRun/test_Dockerfile_test_issue_mz1340":  {"--extra-ignore-files=dest/linkS", "--extra-ignore-layer-length-mismatch"},
 	"TestRun/test_Dockerfile_test_multistage":    {"--extra-ignore-files=new", "--extra-ignore-layer-length-mismatch"},
 	"TestRun/test_Dockerfile_test_cross_compile": {"--platform=linux/" + crossCompileArch},
 	// kaniko adds parent directories of changed paths to the full-filesystem snapshot

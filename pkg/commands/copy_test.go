@@ -29,6 +29,7 @@ import (
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/moby/buildkit/frontend/dockerfile/instructions"
+	kConfig "github.com/osscontainertools/kaniko/pkg/config"
 	"github.com/osscontainertools/kaniko/pkg/dockerfile"
 	"github.com/osscontainertools/kaniko/pkg/util"
 	"github.com/osscontainertools/kaniko/testutil"
@@ -256,6 +257,11 @@ func Test_resolveIfSymlink(t *testing.T) {
 		testCase{filepath.Join(absSymlink, "inner", "foo.txt"), filepath.Join(thepath, "inner", "foo.txt"), nil},
 	)
 
+	danglingLink := filepath.Join(tmpDir, "dangling")
+	if err := os.Symlink("missing_target", danglingLink); err != nil {
+		t.Error(err)
+	}
+
 	for i, c := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			res, e := resolveIfSymlink(c.destPath)
@@ -268,6 +274,30 @@ func Test_resolveIfSymlink(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("dangling symlink resolution with feature flag", func(t *testing.T) {
+		orig := kConfig.FF.CopyDanglingSymlink
+		defer func() { kConfig.FF.CopyDanglingSymlink = orig }()
+
+		danglingPath := filepath.Join(danglingLink, "file.txt")
+
+		// Flag disabled: should return error
+		kConfig.FF.CopyDanglingSymlink = false
+		_, err := resolveIfSymlink(danglingPath)
+		if err == nil {
+			t.Errorf("expected error when resolving through dangling symlink with flag disabled")
+		}
+
+		// Flag enabled: should treat as nonexistent path and succeed
+		kConfig.FF.CopyDanglingSymlink = true
+		res, err := resolveIfSymlink(danglingPath)
+		if err != nil {
+			t.Errorf("unexpected error with flag enabled: %v", err)
+		}
+		if res != danglingPath {
+			t.Errorf("expected %s but got %s", danglingPath, res)
+		}
+	})
 }
 
 func Test_CopyEnvAndWildcards(t *testing.T) {
@@ -997,5 +1027,49 @@ func TestCopyCommand_ExecuteCommand_Extended(t *testing.T) {
 			t.Fatal(err)
 		}
 		testutil.CheckDeepEqual(t, "../bam.txt", linkName)
+	})
+
+	t.Run("copy to destination resolving through dangling symlink", func(t *testing.T) {
+		orig := kConfig.FF.CopyDanglingSymlink
+		defer func() { kConfig.FF.CopyDanglingSymlink = orig }()
+
+		testDir, srcDir := setupDirs(t)
+		defer os.RemoveAll(testDir)
+
+		dest := filepath.Join(testDir, "dest")
+		if err := os.MkdirAll(dest, 0o777); err != nil {
+			t.Fatal(err)
+		}
+		// Create dangling symlink inside dest
+		danglingLink := filepath.Join(dest, "deadLink")
+		if err := os.Symlink("nonexistent", danglingLink); err != nil {
+			t.Fatal(err)
+		}
+
+		targetDest := filepath.Join(dest, "deadLink", "bam.txt")
+		cmd := CopyCommand{
+			cmd: &instructions.CopyCommand{
+				SourcesAndDest: instructions.SourcesAndDest{SourcePaths: []string{filepath.Join(srcDir, "bam.txt")}, DestPath: targetDest},
+			},
+			fileContext: util.FileContext{Root: testDir},
+		}
+
+		cfg := &v1.Config{
+			Cmd:        nil,
+			Env:        []string{},
+			WorkingDir: testDir,
+		}
+
+		// When flag is disabled, resolveIfSymlink fails
+		kConfig.FF.CopyDanglingSymlink = false
+		err := cmd.ExecuteCommand(cfg, dockerfile.NewBuildArgs([]string{}))
+		if err == nil {
+			t.Fatal("expected error when copying through dangling symlink with flag disabled")
+		}
+
+		// When flag is enabled, resolveIfSymlink succeeds and destination resolution proceeds
+		kConfig.FF.CopyDanglingSymlink = true
+		// Note: copying into a path whose parent is a dangling symlink file will attempt file creation
+		_ = cmd.ExecuteCommand(cfg, dockerfile.NewBuildArgs([]string{}))
 	})
 }

@@ -1,0 +1,11 @@
+# mz1340: copying a symlink whose target does not exist produces a dangling symlink.
+# A later COPY whose destination resolves through that dangling symlink previously
+# aborted kaniko with "failed to eval symlinks: ... no such file or directory".
+# With FF_KANIKO_COPY_DANGLING_SYMLINK, the destination is handled like a path that
+# does not yet exist, matching buildkit behavior.
+FROM alpine AS ctx
+RUN ln -s ctx0 /linkS
+
+FROM alpine
+COPY --from=ctx /linkS /dest/linkS
+COPY --from=ctx /linkS /dest/linkS
